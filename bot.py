@@ -191,11 +191,43 @@ async def nowplaying(interaction: discord.Interaction):
  
     await interaction.response.send_message(embed=embed)
  
+# ─── Aktív scan minden 5 percben ──────────────────────────────────────────────
+@tasks.loop(minutes=5)
+async def scan_presences():
+    now = datetime.utcnow()
+    for guild in bot.guilds:
+        for member in guild.members:
+            if member.bot or not has_figyelt_rang(member):
+                continue
+            uid = str(member.id)
+            current_game = next(
+                (a.name for a in member.activities if a.type == discord.ActivityType.playing),
+                None
+            )
+            active_game = active_sessions.get(uid, {}).get("game")
+ 
+            # Ha most játszik de nincs session -> kezdés
+            if current_game and not active_game:
+                active_sessions[uid] = {"game": current_game, "start": now.isoformat()}
+                print(f"[SCAN] {member.display_name} elkezdte: {current_game}")
+ 
+            # Ha más játékra váltott
+            elif current_game and active_game and current_game != active_game:
+                end_session(uid, now)
+                active_sessions[uid] = {"game": current_game, "start": now.isoformat()}
+                print(f"[SCAN] {member.display_name} valtott: {current_game}")
+ 
+            # Ha abbahagyta
+            elif not current_game and active_game:
+                end_session(uid, now)
+                print(f"[SCAN] {member.display_name} abbahagyta: {active_game}")
+ 
 # ─── Bot indulás ───────────────────────────────────────────────────────────────
 @bot.event
 async def on_ready():
     await bot.tree.sync()
     weekly_reset_check.start()
+    scan_presences.start()
     print(f"Bot bejelentkezve: {bot.user}")
  
     now = datetime.utcnow()
