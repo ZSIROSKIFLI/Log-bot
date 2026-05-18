@@ -125,13 +125,13 @@ def build_leaderboard_embed(guild, now):
     embed = discord.Embed(
         title="\U0001f3c6 El Diablo Leaderboard",
         description="\n".join(lines) if lines else "*M\u00e9g nincs adat*",
-        color=discord.Color.gold(),
+        color=discord.Color.red(),
         timestamp=now
     )
     embed.set_footer(text="\U0001f504 5 percenk\u00e9nt friss\u00fcl | Utols\u00f3 reset: " + last_reset)
     return embed
 
-@tasks.loop(minutes=5)
+@tasks.loop(minutes=1)
 async def auto_leaderboard():
     now = datetime.utcnow()
     for guild in bot.guilds:
