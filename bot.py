@@ -132,7 +132,7 @@ def build_leaderboard_embed(guild, now):
     embed.set_footer(text="\U0001f504 5 percenk\u00e9nt friss\u00fcl | Utols\u00f3 reset: " + last_reset)
     return embed
 
-@tasks.loop(minutes=1)
+@tasks.loop(seconds=30)
 async def auto_leaderboard():
     now = datetime.utcnow()
     for guild in bot.guilds:
@@ -437,6 +437,38 @@ async def debug(interaction: discord.Interaction):
         timestamp=now
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="removenemmegfigy", description="[Vezetoseg] Torli a nem figyelt jatekok adatait")
+@app_commands.describe(member="Melyik tagnak (elhagyhatho = mindenki)")
+async def removenemmegfigy(interaction: discord.Interaction, member: discord.Member = None):
+    if not has_rang(interaction.user, VEZETES_RANG):
+        await interaction.response.send_message("Nincs jogosultsagod! \U0001f6ab", ephemeral=True)
+        return
+
+    removed_count = 0
+    if member:
+        # Csak egy embernél
+        uid = str(member.id)
+        user_data = db["users"].get(uid, {})
+        to_delete = [g for g in list(user_data.get("total_seconds", {}).keys()) if g not in FIGYELT_JATEKOK]
+        for g in to_delete:
+            del user_data["total_seconds"][g]
+            removed_count += 1
+        save_data(db)
+        await interaction.response.send_message(
+            "\u2705 **" + member.display_name + "**-tol **" + str(removed_count) + "** nem figyelt jatek torolve."
+        )
+    else:
+        # Mindenkinél
+        for uid, user_data in db["users"].items():
+            to_delete = [g for g in list(user_data.get("total_seconds", {}).keys()) if g not in FIGYELT_JATEKOK]
+            for g in to_delete:
+                del user_data["total_seconds"][g]
+                removed_count += 1
+        save_data(db)
+        await interaction.response.send_message(
+            "\u2705 Mindenkit\u0151l osszesen **" + str(removed_count) + "** nem figyelt jatek torolve."
+        )
 
 @bot.event
 async def on_ready():
