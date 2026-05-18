@@ -102,34 +102,38 @@ def build_leaderboard_rows(guild, now):
             elapsed = int((now - datetime.fromisoformat(active_sessions[uid]["start"])).total_seconds())
             g = active_sessions[uid]["game"]
             games[g] = games.get(g, 0) + elapsed
-        rows.append((member, games, sum(games.values()), uid))
-    rows.sort(key=lambda x: x[2], reverse=True)
+        drp_secs = games.get("DRP", 0)
+        rows.append((member, games, drp_secs, sum(games.values()), uid))
+    rows.sort(key=lambda x: (x[2], x[3]), reverse=True)
     return rows
 
 def build_leaderboard_embed(guild, now):
     rows = build_leaderboard_rows(guild, now)
-    medals = ["\U0001f947", "\U0001f948", "\U0001f949"]
+    medals = ["🥇", "🥈", "🥉"]
     lines = []
-    for i, (member, games, total, uid) in enumerate(rows):
+    for i, (member, games, drp_secs, total, uid) in enumerate(rows):
         place = medals[i] if i < 3 else f"**{i+1}.**"
-        live = " \U0001f534" if uid in active_sessions else ""
+        live = " 🔴" if uid in active_sessions else ""
         name = member.display_name
         if games:
-            parts = ", ".join(
-                g + " `" + fmt_time(s) + "`"
-                for g, s in sorted(games.items(), key=lambda x: x[1], reverse=True)
-            )
-            lines.append(place + " **" + name + "**" + live + " \u2014 " + parts)
+            ordered = []
+            if "DRP" in games:
+                ordered.append(("DRP", games["DRP"]))
+            for g, s in sorted(games.items(), key=lambda x: x[1], reverse=True):
+                if g != "DRP":
+                    ordered.append((g, s))
+            parts = ", ".join(g + " `" + fmt_time(s) + "`" for g, s in ordered)
+            lines.append(place + " **" + name + "**" + live + " — " + parts)
         else:
-            lines.append(place + " **" + name + "** \u2014 *m\u00e9g nem j\u00e1tszott*")
-    last_reset = str(db.get("last_reset", "M\u00e9g nem volt"))[:10]
+            lines.append(place + " **" + name + "** — *még nem játszott*")
+    last_reset = str(db.get("last_reset", "Még nem volt"))[:10]
     embed = discord.Embed(
-        title="\U0001f3c6 El Diablo Leaderboard",
-        description="\n".join(lines) if lines else "*M\u00e9g nincs adat*",
+        title="🏆 El Diablo Leaderboard",
+        description="\n".join(lines) if lines else "*Még nincs adat*",
         color=discord.Color.red(),
         timestamp=now
     )
-    embed.set_footer(text="\U0001f504 5 percenk\u00e9nt friss\u00fcl | Utols\u00f3 reset: " + last_reset)
+    embed.set_footer(text="🔄 30 másodpercenként frissül | Utolsó reset: " + last_reset)
     return embed
 
 @tasks.loop(seconds=30)
@@ -378,7 +382,7 @@ async def resetleaderboard(interaction: discord.Interaction):
     rows = build_leaderboard_rows(interaction.guild, now)
     most_active = rows[0][0].display_name if rows and rows[0][2] > 0 else "Senki"
     archive_rows = []
-    for member, games, total, uid in rows:
+    for member, games, drp_secs, total, uid in rows:
         archive_rows.append({
             "name": member.display_name,
             "uid": uid,
@@ -437,6 +441,32 @@ async def debug(interaction: discord.Interaction):
         timestamp=now
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="frissleaderboard", description="[Vezetoseg] Leaderboard azonnali frissitese")
+async def frissleaderboard(interaction: discord.Interaction):
+    if not has_rang(interaction.user, VEZETES_RANG):
+        await interaction.response.send_message("Nincs jogosultsagod! \U0001f6ab", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    now = datetime.utcnow()
+    channel = get_channel(interaction.guild, LEADERBOARD_CHANNEL)
+    if not channel:
+        await interaction.followup.send("Nem talalom a leaderboard csatornat!", ephemeral=True)
+        return
+    embed = build_leaderboard_embed(interaction.guild, now)
+    msg_id = db.get("leaderboard_message_id")
+    if msg_id:
+        try:
+            msg = await channel.fetch_message(int(msg_id))
+            await msg.edit(embed=embed)
+            await interaction.followup.send("\u2705 Leaderboard frissitve!", ephemeral=True)
+            return
+        except Exception:
+            pass
+    msg = await channel.send(embed=embed)
+    db["leaderboard_message_id"] = str(msg.id)
+    save_data(db)
+    await interaction.followup.send("\u2705 Leaderboard frissitve!", ephemeral=True)
 
 @bot.tree.command(name="removenemmegfigy", description="[Vezetoseg] Torli a nem figyelt jatekok adatait")
 @app_commands.describe(member="Melyik tagnak (elhagyhatho = mindenki)")
