@@ -14,6 +14,7 @@ INAKTIV_RANG = "Inaktiv Tag | \U0001f47b"
 LEADERBOARD_CHANNEL = "\u2503\u3018\U0001f4ca\u3019aktivitas-mero"
 INAKTIV_CHANNEL = "\u2503\u3018\U0001f573\ufe0f\u3019inaktivitas-jelzo"
 INAKTIV_NAPOK = 3
+FIGYELT_JATEKOK = ["DRP", "FiveM", "Aeris ▸ PvP"]
 INAKTIV_MIN_ORA = 17
 
 intents = discord.Intents.default()
@@ -207,7 +208,8 @@ async def scan_presences():
                 continue
             uid = str(member.id)
             current_game = next(
-                (a.name for a in member.activities if a.type == discord.ActivityType.playing), None
+                (a.name for a in member.activities
+                 if a.type == discord.ActivityType.playing and a.name in FIGYELT_JATEKOK), None
             )
             active_game = active_sessions.get(uid, {}).get("game")
             if current_game and not active_game:
@@ -229,8 +231,8 @@ async def on_presence_update(before, after):
         return
     user_id = str(after.id)
     now = datetime.utcnow()
-    before_game = next((a.name for a in before.activities if a.type == discord.ActivityType.playing), None)
-    after_game = next((a.name for a in after.activities if a.type == discord.ActivityType.playing), None)
+    before_game = next((a.name for a in before.activities if a.type == discord.ActivityType.playing and a.name in FIGYELT_JATEKOK), None)
+    after_game = next((a.name for a in after.activities if a.type == discord.ActivityType.playing and a.name in FIGYELT_JATEKOK), None)
     if before_game and before_game != after_game:
         end_session(user_id, now)
         await check_personal_best(after.guild, user_id, now)
@@ -449,7 +451,7 @@ async def on_ready():
             if member.bot or not has_rang(member, FIGYELT_RANG):
                 continue
             for activity in member.activities:
-                if activity.type == discord.ActivityType.playing:
+                if activity.type == discord.ActivityType.playing and activity.name in FIGYELT_JATEKOK:
                     uid = str(member.id)
                     if uid not in active_sessions:
                         active_sessions[uid] = {"game": activity.name, "start": now.isoformat()}
