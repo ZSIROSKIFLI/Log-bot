@@ -694,6 +694,82 @@ async def removenemmegfigy(interaction: discord.Interaction, member: discord.Mem
             "\u2705 Mindenkit\u0151l osszesen **" + str(removed_count) + "** nem figyelt jatek torolve."
         )
 
+@bot.tree.command(name="sugo", description="Osszes parancs leirasa")
+async def sugo(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="📖 El Diablo Activity Track – Parancsok",
+        color=discord.Color.blurple()
+    )
+
+    embed.add_field(name="👥 Mindenki hasznalatja", value="​", inline=False)
+
+    embed.add_field(
+        name="/leaderboard",
+        value="Megjeleníti a heti El Diablo toplistát. Mindenki látható aki rendelkezik az El Diablo ranggal, mellettük a DRP/FiveM/Aeris játékidők.",
+        inline=False
+    )
+    embed.add_field(
+        name="/nowplaying",
+        value="Megmutatja ki játszik éppen, mivel, mióta, mikor kezdte (magyar idő), és mennyi az összes heti ideje abból a játékból.",
+        inline=False
+    )
+    embed.add_field(
+        name="/gamestats [jatek]",
+        value="Egy adott játék statisztikái ezen a héten. Pl: `/gamestats DRP` – ki mennyit játszotta, hányan összesen, összes eltöltött idő.",
+        inline=False
+    )
+    embed.add_field(
+        name="/archivum",
+        value="Előző hetek és kézi mentések megtekintése. Legördülő menüből választhatsz hetet, majd letöltheted `.txt` formátumban vagy bezárhatod.",
+        inline=False
+    )
+
+    embed.add_field(name="🍺 Csak Vezetőség használhatja", value="​", inline=False)
+
+    embed.add_field(
+        name="/addtime [@tag] [jatek] [hours] [minutes]",
+        value="Kézzel adsz hozzá játékidőt valakinek. Pl: `/addtime @Lompos DRP 2 30` = +2 óra 30 perc DRP.",
+        inline=False
+    )
+    embed.add_field(
+        name="/removetime [@tag] [jatek] [hours] [minutes]",
+        value="Elveszel játékidőt valakitől. Ugyanúgy működik mint az addtime, csak kivon.",
+        inline=False
+    )
+    embed.add_field(
+        name="/resetleaderboard",
+        value="Elmenti az aktuális hetet az archívumba, majd nulláz mindent. Kiírja ki volt a legaktívabb, és küld üzenetet a leaderboard csatornába.",
+        inline=False
+    )
+    embed.add_field(
+        name="/mentes [nev]",
+        value="Pillanatkép mentése az aktuális állásról. Ha már van mentés ezen a héten, frissíti azt. A név opcionális – ha nem adsz meg, `05.18-05.24 20:47` formátumú lesz. Visszanézni: `/archivum`.",
+        inline=False
+    )
+    embed.add_field(
+        name="/torleslog",
+        value="Egy archivált log törlése. Legördülő menüből kiválasztod melyiket, majd megerősítéssel törli – a Volume-ból is eltűnik véglegesen.",
+        inline=False
+    )
+    embed.add_field(
+        name="/frissleaderboard",
+        value="Azonnal frissíti a leaderboard üzenetet a `aktivitas-mero` csatornában. Hasznos ha valamiért nem frissült automatikusan.",
+        inline=False
+    )
+    embed.add_field(
+        name="/removenemmegfigy [@tag]",
+        value="Törli a nem figyelt játékok adatait (csak DRP, FiveM, Aeris marad). Ha megadsz egy tagot, csak annál törli. Ha nem adsz meg senkit, mindenkinél.",
+        inline=False
+    )
+    embed.add_field(
+        name="/debug",
+        value="Megmutatja mi van a bot memóriájában: ki van aktív sessionben, ki mennyi időt gyűjtött, mikor volt az utolsó reset, hány archivált hét van.",
+        inline=False
+    )
+
+    embed.set_footer(text="Bot csak az El Diablo | 👹 rangú tagokat figyeli | Méri: DRP, FiveM, Aeris ▸ PvP")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 @bot.event
 async def on_ready():
     await bot.tree.sync()
