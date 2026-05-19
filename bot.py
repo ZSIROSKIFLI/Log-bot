@@ -531,6 +531,63 @@ async def archivum(interaction: discord.Interaction):
     )
     await interaction.response.send_message(embed=embed, view=ArchivumView(), ephemeral=True)
 
+@bot.tree.command(name="torleslog", description="[Vezetoseg] Egy mentesi log torlese")
+async def torleslog(interaction: discord.Interaction):
+    if not has_rang(interaction.user, VEZETES_RANG):
+        await interaction.response.send_message("Nincs jogosultsagod! \U0001f6ab", ephemeral=True)
+        return
+    archive = load_archive()
+    if not archive:
+        await interaction.response.send_message("Nincs torolheto log.", ephemeral=True)
+        return
+    options = []
+    for i, entry in enumerate(reversed(archive)):
+        is_mentes = entry.get("type") == "mentes"
+        prefix = "\U0001f4be " if is_mentes else "\U0001f4c5 "
+        options.append(discord.SelectOption(
+            label=prefix + entry["week_start"],
+            description=("Mentette: " + entry.get("saved_by", "?")) if is_mentes else "Heti reset",
+            value=str(len(archive) - 1 - i)
+        ))
+
+    class TorlesSelect(discord.ui.Select):
+        def __init__(self):
+            super().__init__(placeholder="Melyiket torold?", options=options[:25])
+
+        async def callback(self, interaction: discord.Interaction):
+            idx = int(self.values[0])
+            entry = archive[idx]
+            label = entry["week_start"]
+
+            class ConfirmView(discord.ui.View):
+                def __init__(self):
+                    super().__init__(timeout=30)
+
+                @discord.ui.button(label="\U0001f5d1\ufe0f Torles megerositese", style=discord.ButtonStyle.danger)
+                async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+                    archive.pop(idx)
+                    save_archive(archive)
+                    await interaction.response.edit_message(
+                        content="\u2705 **`" + label + "`** log torolve.",
+                        embed=None, view=None
+                    )
+
+                @discord.ui.button(label="\u2716\ufe0f Megse", style=discord.ButtonStyle.secondary)
+                async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+                    await interaction.response.edit_message(content="Torles megszakitva.", embed=None, view=None)
+
+            await interaction.response.edit_message(
+                content="Biztosan torled: **`" + label + "`**?",
+                embed=None, view=ConfirmView()
+            )
+
+    class TorlesView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=60)
+            self.add_item(TorlesSelect())
+
+    await interaction.response.send_message("Valassz egy logot a torleshez:", view=TorlesView(), ephemeral=True)
+
 @bot.tree.command(name="mentes", description="[Vezetoseg] Aktualis allapat mentese a logba")
 @app_commands.describe(nev="A mentes neve (pl. szerda-este)")
 async def mentes(interaction: discord.Interaction, nev: str = ""):
@@ -547,10 +604,12 @@ async def mentes(interaction: discord.Interaction, nev: str = ""):
             "games": [(g, s) for g, s in sorted(games.items(), key=lambda x: x[1], reverse=True)],
             "total": total
         })
-    label = nev if nev else get_week_label(now) + " " + now.strftime("%H:%M")
+    week_key = get_week_label(now)
+    label = nev if nev else week_key
     most_active = rows[0][0].display_name if rows and rows[0][2] > 0 else "Senki"
     snapshot = {
         "week_start": label,
+        "week_key": week_key,
         "most_active": most_active,
         "rows": snapshot_rows,
         "type": "mentes",
@@ -558,12 +617,21 @@ async def mentes(interaction: discord.Interaction, nev: str = ""):
         "saved_at": now.isoformat()
     }
     archive = load_archive()
-    archive.append(snapshot)
+    # Ha már van ugyanolyan week_key, frissítse azt
+    updated = False
+    for i, entry in enumerate(archive):
+        if entry.get("week_key") == week_key or entry.get("week_start") == label:
+            archive[i] = snapshot
+            updated = True
+            break
+    if not updated:
+        archive.append(snapshot)
     if len(archive) > 24:
         archive = archive[-24:]
     save_archive(archive)
+    status = "frissitve" if updated else "mentve"
     await interaction.response.send_message(
-        "\u2705 **Mentve:** `" + label + "` (" + str(len(snapshot_rows)) + " tag adatai elmentve)\n"
+        "\u2705 **" + status.capitalize() + ":** `" + label + "` (" + str(len(snapshot_rows)) + " tag adatai elmentve)\n"
         "Visszanezni: `/archivum`",
         ephemeral=True
     )
