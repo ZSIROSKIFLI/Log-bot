@@ -442,6 +442,86 @@ async def debug(interaction: discord.Interaction):
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+@bot.tree.command(name="archivum", description="Előző hetek megtekintése és letöltése")
+async def archivum(interaction: discord.Interaction):
+    archive = load_archive()
+    if not archive:
+        await interaction.response.send_message("Még nincs archivált hét.", ephemeral=True)
+        return
+
+    options = []
+    for i, entry in enumerate(reversed(archive)):
+        week_num = i + 1
+        most_active = entry.get("most_active", "?")
+        options.append(discord.SelectOption(
+            label=entry["week_start"] + " hete",
+            description="Legaktívabb: " + most_active,
+            value=str(len(archive) - 1 - i)
+        ))
+
+    class ArchivumSelect(discord.ui.Select):
+        def __init__(self):
+            super().__init__(placeholder="Válassz egy hetet...", options=options[:25])
+
+        async def callback(self, interaction: discord.Interaction):
+            idx = int(self.values[0])
+            entry = archive[idx]
+            medals = ["🥇", "🥈", "🥉"]
+            lines = []
+            for i, row in enumerate(entry["rows"]):
+                place = medals[i] if i < 3 else str(i+1) + "."
+                parts = ", ".join(g + " " + fmt_time(s) for g, s in row["games"])
+                lines.append(place + " " + row["name"] + " — " + (parts if parts else "nem játszott"))
+
+            embed = discord.Embed(
+                title="📅 " + entry["week_start"] + " hete",
+                description="\n".join(lines) if lines else "*Nincs adat*",
+                color=discord.Color.blurple()
+            )
+            embed.set_footer(text="Legaktívabb: " + entry.get("most_active", "?"))
+
+            view = DownloadCloseView(idx, entry)
+            await interaction.response.edit_message(embed=embed, view=view)
+
+    class DownloadCloseView(discord.ui.View):
+        def __init__(self, idx, entry):
+            super().__init__(timeout=120)
+            self.idx = idx
+            self.entry = entry
+
+        @discord.ui.button(label="⬇️ Letöltés", style=discord.ButtonStyle.primary)
+        async def download(self, interaction: discord.Interaction, button: discord.ui.Button):
+            entry = self.entry
+            lines = ["El Diablo Leaderboard - " + entry["week_start"] + " hete"]
+            lines.append("Legaktivabb: " + entry.get("most_active", "?"))
+            lines.append("=" * 40)
+            for i, row in enumerate(entry["rows"]):
+                place = str(i+1) + "."
+                parts = ", ".join(g + " " + fmt_time(s) for g, s in row["games"])
+                total = fmt_time(row.get("total", 0))
+                lines.append(place + " " + row["name"] + " | Osszes: " + total + " | " + (parts if parts else "nem jatszott"))
+            content_str = "\n".join(lines)
+            file_bytes = content_str.encode("utf-8")
+            import io
+            file = discord.File(io.BytesIO(file_bytes), filename="leaderboard_" + entry["week_start"].replace(".", "-") + ".txt")
+            await interaction.response.send_message(file=file, ephemeral=True)
+
+        @discord.ui.button(label="✖️ Bezárás", style=discord.ButtonStyle.danger)
+        async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.edit_message(content="*Bezárva.*", embed=None, view=None)
+
+    class ArchivumView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=120)
+            self.add_item(ArchivumSelect())
+
+    embed = discord.Embed(
+        title="📚 Archívum",
+        description="Válassz egy hetet az alábbi listából:",
+        color=discord.Color.blurple()
+    )
+    await interaction.response.send_message(embed=embed, view=ArchivumView(), ephemeral=True)
+
 @bot.tree.command(name="frissleaderboard", description="[Vezetoseg] Leaderboard azonnali frissitese")
 async def frissleaderboard(interaction: discord.Interaction):
     if not has_rang(interaction.user, VEZETES_RANG):
