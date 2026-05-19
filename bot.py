@@ -451,11 +451,14 @@ async def archivum(interaction: discord.Interaction):
 
     options = []
     for i, entry in enumerate(reversed(archive)):
-        week_num = i + 1
         most_active = entry.get("most_active", "?")
+        is_mentes = entry.get("type") == "mentes"
+        prefix = "💾 " if is_mentes else "📅 "
+        suffix = "" if is_mentes else " hete"
+        saved_by = " (mentette: " + entry.get("saved_by", "?") + ")" if is_mentes else ""
         options.append(discord.SelectOption(
-            label=entry["week_start"] + " hete",
-            description="Legaktívabb: " + most_active,
+            label=prefix + entry["week_start"] + suffix,
+            description="Legaktivabb: " + most_active + saved_by,
             value=str(len(archive) - 1 - i)
         ))
 
@@ -521,6 +524,43 @@ async def archivum(interaction: discord.Interaction):
         color=discord.Color.blurple()
     )
     await interaction.response.send_message(embed=embed, view=ArchivumView(), ephemeral=True)
+
+@bot.tree.command(name="mentes", description="[Vezetoseg] Aktualis allapat mentese a logba")
+@app_commands.describe(nev="A mentes neve (pl. szerda-este)")
+async def mentes(interaction: discord.Interaction, nev: str = ""):
+    if not has_rang(interaction.user, VEZETES_RANG):
+        await interaction.response.send_message("Nincs jogosultsagod! \U0001f6ab", ephemeral=True)
+        return
+    now = datetime.utcnow()
+    rows = build_leaderboard_rows(interaction.guild, now)
+    snapshot_rows = []
+    for member, games, drp_secs, total, uid in rows:
+        snapshot_rows.append({
+            "name": member.display_name,
+            "uid": uid,
+            "games": [(g, s) for g, s in sorted(games.items(), key=lambda x: x[1], reverse=True)],
+            "total": total
+        })
+    label = nev if nev else now.strftime("%Y.%m.%d %H:%M")
+    most_active = rows[0][0].display_name if rows and rows[0][2] > 0 else "Senki"
+    snapshot = {
+        "week_start": label,
+        "most_active": most_active,
+        "rows": snapshot_rows,
+        "type": "mentes",
+        "saved_by": interaction.user.display_name,
+        "saved_at": now.isoformat()
+    }
+    archive = load_archive()
+    archive.append(snapshot)
+    if len(archive) > 24:
+        archive = archive[-24:]
+    save_archive(archive)
+    await interaction.response.send_message(
+        "\u2705 **Mentve:** `" + label + "` (" + str(len(snapshot_rows)) + " tag adatai elmentve)\n"
+        "Visszanezni: `/archivum`",
+        ephemeral=True
+    )
 
 @bot.tree.command(name="frissleaderboard", description="[Vezetoseg] Leaderboard azonnali frissitese")
 async def frissleaderboard(interaction: discord.Interaction):
