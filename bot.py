@@ -64,6 +64,12 @@ def fmt_time(seconds):
     m, s = divmod(rem, 60)
     return f"{d:02}:{h:02}:{m:02}:{s:02}"
 
+def get_week_label(dt):
+    # Hét eleje = hétfő, vége = vasárnap
+    monday = dt - timedelta(days=dt.weekday())
+    sunday = monday + timedelta(days=6)
+    return monday.strftime("%m.%d") + "-" + sunday.strftime("%m.%d")
+
 def end_session(user_id, now):
     if user_id not in active_sessions:
         return
@@ -390,7 +396,7 @@ async def resetleaderboard(interaction: discord.Interaction):
             "total": total
         })
     archive = load_archive()
-    archive.append({"week_start": now.strftime("%Y.%m.%d"), "most_active": most_active, "rows": archive_rows})
+    archive.append({"week_start": get_week_label(now), "most_active": most_active, "rows": archive_rows})
     if len(archive) > 12:
         archive = archive[-12:]
     save_archive(archive)
@@ -541,7 +547,7 @@ async def mentes(interaction: discord.Interaction, nev: str = ""):
             "games": [(g, s) for g, s in sorted(games.items(), key=lambda x: x[1], reverse=True)],
             "total": total
         })
-    label = nev if nev else now.strftime("%Y.%m.%d %H:%M")
+    label = nev if nev else get_week_label(now) + " " + now.strftime("%H:%M")
     most_active = rows[0][0].display_name if rows and rows[0][2] > 0 else "Senki"
     snapshot = {
         "week_start": label,
