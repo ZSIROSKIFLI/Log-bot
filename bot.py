@@ -14,6 +14,7 @@ INAKTIV_RANG = "Inaktiv Tag | \U0001f47b"
 LEADERBOARD_CHANNEL = "\u2503\u3018\U0001f4ca\u3019aktivitas-mero"
 INAKTIV_CHANNEL = "\u2503\u3018\U0001f573\ufe0f\u3019inaktivitas-jelzo"
 INAKTIV_NAPOK = 3
+INAKTIV_KIVETEL_RANGOK = ["Szabadság", "Boss", "Under Boss"]  # Ezekre nem rakunk Inaktiv rangot
 FIGYELT_JATEKOK = ["DRP", "FiveM", "Aeris ▸ PvP"]
 INAKTIV_MIN_ORA = 17
 
@@ -189,6 +190,8 @@ async def inaktiv_check():
             if last_seen_str:
                 days_since = (now - datetime.fromisoformat(last_seen_str)).days
             if weekly < MIN_SEC and days_since >= INAKTIV_NAPOK:
+                if any(r.name in INAKTIV_KIVETEL_RANGOK for r in member.roles):
+                    continue  # Szabadsag / Boss / Under Boss - kihagyjuk
                 inaktivak.append((member, weekly, days_since))
         if not inaktivak:
             continue
@@ -789,29 +792,46 @@ async def on_ready():
 
     # Parancsok lista kuldese az aktivitas-parancsok csatornaba
     PARANCS_CH = "┃〘🚧〙aktivitas-parancsok"
+    PARANCS_VERZIO = "v10"  # <-- ezt novelni ha uj parancs kerul be
+
     for guild in bot.guilds:
         ch = get_channel(guild, PARANCS_CH)
-        if ch:
-            embed = discord.Embed(
-                title="📖 El Diablo Activity Track – Parancsok",
-                color=discord.Color.blurple()
-            )
-            embed.add_field(name="👥 Mindenki hasznalja", value="​", inline=False)
-            embed.add_field(name="/leaderboard", value="Heti El Diablo toplista – DRP szerint rangsorolva, mellette a tobbi jatek is.", inline=False)
-            embed.add_field(name="/nowplaying", value="Ki jatszik eppen, mivel, miota, mikor kezdte (magyar ido) es heti osszes ideje.", inline=False)
-            embed.add_field(name="/gamestats [jatek]", value="Egy adott jatek statisztikai ezen a heten. Pl: `/gamestats DRP`", inline=False)
-            embed.add_field(name="/archivum", value="Elozo hetek es kezi mentesek megtekintese, letoltese `.txt` formatumban.", inline=False)
-            embed.add_field(name="🍺 Csak Vezetőség", value="​", inline=False)
-            embed.add_field(name="/addtime [@tag] [jatek] [hours] [minutes]", value="Kezzel adsz hozza jatekidot valakinek. Pl: `/addtime @Lompos DRP 2 30`", inline=False)
-            embed.add_field(name="/removetime [@tag] [jatek] [hours] [minutes]", value="Elveszel jatekidot valakitol.", inline=False)
-            embed.add_field(name="/resetleaderboard", value="Archivumba menti az aktualis hetet, majd nullaz mindent. Kuldjon uzenetet a leaderboard csatornaba.", inline=False)
-            embed.add_field(name="/mentes [nev]", value="Pillanatnyi allapot mentese. Ha mar van mentes ezen a heten, frissiti azt. Visszanezni: `/archivum`", inline=False)
-            embed.add_field(name="/torleslog", value="Archivalt log torlese. Legordulo menubol valasztasz, majd megerositesssel torli.", inline=False)
-            embed.add_field(name="/frissleaderboard", value="Azonnali leaderboard frissites az aktivitas-mero csatornaban.", inline=False)
-            embed.add_field(name="/removenemmegfigy [@tag]", value="Torli a nem figyelt jatekok adatait (csak DRP, FiveM, Aeris marad).", inline=False)
-            embed.add_field(name="/debug", value="Bot memoria: aktiv sessionok, mentett adatok, utolso reset, archivum.", inline=False)
-            embed.set_footer(text="Csak El Diablo | 👹 rangu tagokat figyeli | Meri: DRP, FiveM, Aeris ▸ PvP")
-            await ch.send(embed=embed)
+        if not ch:
+            continue
+        # Megnezi az utolso uzenetet - ha mar ugyanez a verzio, nem kuldi ujra
+        last_verzio = None
+        try:
+            async for msg in ch.history(limit=5):
+                if msg.author == bot.user and msg.embeds:
+                    footer = msg.embeds[0].footer.text if msg.embeds[0].footer else ""
+                    if footer and "verzio:" in footer:
+                        last_verzio = footer.split("verzio:")[-1].strip()
+                    break
+        except Exception:
+            pass
+        if last_verzio == PARANCS_VERZIO:
+            continue  # Mar ugyanez a verzio van kint, nem kuldi ujra
+
+        embed = discord.Embed(
+            title="📖 El Diablo Activity Track – Parancsok",
+            color=discord.Color.blurple()
+        )
+        embed.add_field(name="👥 Mindenki hasznalja", value="​", inline=False)
+        embed.add_field(name="/leaderboard", value="Heti El Diablo toplista – DRP szerint rangsorolva, mellette a tobbi jatek is.", inline=False)
+        embed.add_field(name="/nowplaying", value="Ki jatszik eppen, mivel, miota, mikor kezdte (magyar ido) es heti osszes ideje.", inline=False)
+        embed.add_field(name="/gamestats [jatek]", value="Egy adott jatek statisztikai ezen a heten. Pl: `/gamestats DRP`", inline=False)
+        embed.add_field(name="/archivum", value="Elozo hetek es kezi mentesek megtekintese, letoltese `.txt` formatumban.", inline=False)
+        embed.add_field(name="🍺 Csak Vezetőség", value="​", inline=False)
+        embed.add_field(name="/addtime [@tag] [jatek] [hours] [minutes]", value="Kezzel adsz hozza jatekidot valakinek. Pl: `/addtime @Lompos DRP 2 30`", inline=False)
+        embed.add_field(name="/removetime [@tag] [jatek] [hours] [minutes]", value="Elveszel jatekidot valakitol.", inline=False)
+        embed.add_field(name="/resetleaderboard", value="Archivumba menti az aktualis hetet, majd nullaz mindent. Kuldjon uzenetet a leaderboard csatornaba.", inline=False)
+        embed.add_field(name="/mentes [nev]", value="Pillanatnyi allapot mentese. Ha mar van mentes ezen a heten, frissiti azt. Visszanezni: `/archivum`", inline=False)
+        embed.add_field(name="/torleslog", value="Archivalt log torlese. Legordulo menubol valasztasz, majd megerositesssel torli.", inline=False)
+        embed.add_field(name="/frissleaderboard", value="Azonnali leaderboard frissites az aktivitas-mero csatornaban.", inline=False)
+        embed.add_field(name="/removenemmegfigy [@tag]", value="Torli a nem figyelt jatekok adatait (csak DRP, FiveM, Aeris marad).", inline=False)
+        embed.add_field(name="/debug", value="Bot memoria: aktiv sessionok, mentett adatok, utolso reset, archivum.", inline=False)
+        embed.set_footer(text="Csak El Diablo | 👹 rangu tagokat figyeli | Meri: DRP, FiveM, Aeris ▸ PvP | verzio: " + PARANCS_VERZIO)
+        await ch.send(embed=embed)
 
     now = datetime.utcnow()
     for guild in bot.guilds:
