@@ -146,6 +146,15 @@ def build_leaderboard_embed(guild, now):
 async def auto_leaderboard():
     now = datetime.utcnow()
     for guild in bot.guilds:
+        # Torolje akinek mar nincs El Diablo rang
+        for uid in list(db["users"].keys()):
+            member = guild.get_member(int(uid))
+            if member and not has_rang(member, FIGYELT_RANG):
+                if uid in active_sessions:
+                    end_session(uid, now)
+                del db["users"][uid]
+                save_data(db)
+                print(f"[CLEANUP] {uid} torolve, nincs El Diablo rang")
         channel = get_channel(guild, LEADERBOARD_CHANNEL)
         if not channel:
             continue
